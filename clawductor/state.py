@@ -44,6 +44,7 @@ class SessionEntry:
     status: str
     started_at: datetime
     cost_usd: float = 0.0
+    ctx_pct: float = 0.0
 
 
 @dataclass
@@ -76,6 +77,7 @@ class ClawductorState:
                     "status": s.status,
                     "started_at": s.started_at.isoformat(),
                     "cost_usd": s.cost_usd,
+                    "ctx_pct": s.ctx_pct,
                 }
                 for s in self.sessions
             ],
@@ -102,6 +104,18 @@ class ClawductorState:
         for s in self.sessions:
             if s.id == session_id:
                 s.status = status
+        self.save()
+
+    def complete_mock_init(
+        self, repo_path: str, tasks: list, session: "SessionEntry"
+    ) -> None:
+        """Transition a repo from INITIALISING to READY with mock tasks and a session."""
+        for r in self.repos:
+            if r.path == repo_path:
+                r.status = "READY"
+                r.tasks = tasks
+                break
+        self.sessions.append(session)
         self.save()
 
 
@@ -136,6 +150,7 @@ def load_state(path: Path = STATE_PATH) -> ClawductorState:
             status=s["status"],
             started_at=datetime.fromisoformat(s["started_at"]),
             cost_usd=s.get("cost_usd", 0.0),
+            ctx_pct=s.get("ctx_pct", 0.0),
         )
         for s in data.get("sessions", [])
     ]

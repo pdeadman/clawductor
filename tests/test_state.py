@@ -206,6 +206,80 @@ def test_remove_all_repos(tmp_state):
     assert loaded.repos == []
 
 
+def test_ctx_pct_saves_and_loads(tmp_state):
+    state = ClawductorState(_path=tmp_state)
+    session = SessionEntry(
+        id="s1",
+        repo_path="/repo",
+        task_id="t1",
+        status="RUNNING",
+        started_at=datetime(2026, 3, 13),
+        ctx_pct=42.5,
+    )
+    state.add_session(session)
+
+    loaded = load_state(tmp_state)
+    assert loaded.sessions[0].ctx_pct == 42.5
+
+
+def test_ctx_pct_defaults_to_zero(tmp_state):
+    """Sessions saved without ctx_pct load with 0.0."""
+    state = ClawductorState(_path=tmp_state)
+    state.add_session(SessionEntry(
+        id="s1",
+        repo_path="/repo",
+        task_id="t1",
+        status="RUNNING",
+        started_at=datetime(2026, 3, 13),
+    ))
+    loaded = load_state(tmp_state)
+    assert loaded.sessions[0].ctx_pct == 0.0
+
+
+def test_complete_mock_init(tmp_state):
+    state = ClawductorState(_path=tmp_state)
+    state.add_repo(RepoEntry(
+        path="/repo/a",
+        name="a",
+        status="INITIALISING",
+        added_at=datetime(2026, 3, 13),
+    ))
+    tasks = [{"id": "TASK-001", "description": "Test", "status": "in_progress", "priority": "high"}]
+    session = SessionEntry(
+        id="agent-1",
+        repo_path="/repo/a",
+        task_id="TASK-001",
+        status="RUNNING",
+        started_at=datetime(2026, 3, 13),
+        ctx_pct=34.0,
+    )
+    state.complete_mock_init("/repo/a", tasks, session)
+
+    loaded = load_state(tmp_state)
+    assert loaded.repos[0].status == "READY"
+    assert loaded.repos[0].tasks == tasks
+    assert len(loaded.sessions) == 1
+    assert loaded.sessions[0].id == "agent-1"
+    assert loaded.sessions[0].ctx_pct == 34.0
+
+
+def test_complete_mock_init_unknown_path_is_noop(tmp_state):
+    """complete_mock_init on a path not in repos still appends the session."""
+    state = ClawductorState(_path=tmp_state)
+    tasks = []
+    session = SessionEntry(
+        id="agent-1",
+        repo_path="/repo/missing",
+        task_id="TASK-001",
+        status="RUNNING",
+        started_at=datetime(2026, 3, 13),
+    )
+    state.complete_mock_init("/repo/missing", tasks, session)
+    loaded = load_state(tmp_state)
+    assert loaded.repos == []
+    assert len(loaded.sessions) == 1
+
+
 def test_remove_only_first_duplicate(tmp_state):
     """If the same path is added twice, remove_repo only removes the first entry."""
     state = ClawductorState(_path=tmp_state)
