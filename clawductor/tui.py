@@ -514,13 +514,23 @@ class ClawductorApp(App):
         if self._state is None:
             return
         for repo in self._state.repos:
-            task_count = len(repo.tasks)
+            total = len(repo.tasks)
+            in_progress = sum(
+                1 for t in repo.tasks
+                if isinstance(t, dict) and t.get("status") == "in_progress"
+            )
+            active_session = next(
+                (s for s in self._state.sessions
+                 if s.repo_path == repo.path and s.status == "RUNNING"),
+                None,
+            )
+            ctx_cell = f"{int(active_session.ctx_pct)}%" if active_session else "—"
             table.add_row(
                 repo.name,
                 _status_text(repo.status),
-                f"{task_count} pending",
+                f"{in_progress}/{total}" if total else "0",
                 "$0.00",
-                "—",
+                ctx_cell,
             )
 
     def _refresh_table(self) -> None:
