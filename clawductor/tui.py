@@ -21,7 +21,7 @@ from textual.widgets import (
     TextArea,
 )
 
-from clawductor.state import ClawductorState, RepoEntry, validate_repo_path
+from clawductor.state import ClawductorState, RepoEntry, SessionEntry, validate_repo_path
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -35,6 +35,21 @@ STATUS_STYLES: dict[str, str] = {
     "ERROR": "bold red",
     "IDLE": "dim",
 }
+
+TASK_STATUS_STYLES: dict[str, str] = {
+    "pending": "white",
+    "in_progress": "yellow",
+    "completed": "green",
+    "blocked": "red",
+}
+
+# TODO: replace with real initialiser
+MOCK_TASKS = [
+    {"id": "TASK-001", "description": "Implement JWT authentication", "status": "in_progress", "priority": "high"},
+    {"id": "TASK-002", "description": "Add rate limiting to API endpoints", "status": "pending", "priority": "medium"},
+    {"id": "TASK-003", "description": "Write e2e tests for checkout flow", "status": "pending", "priority": "medium"},
+    {"id": "TASK-004", "description": "Set up CI/CD pipeline", "status": "pending", "priority": "low"},
+]
 
 HELP_TEXT = """\
   a    Add repo
@@ -536,11 +551,24 @@ class ClawductorApp(App):
             )
             self._state.add_repo(repo)
             self._refresh_table()
-            self.notify(
-                "Repo added. Initialisation will run when agent support is built."
-            )
+            self.notify("Repo added — initialising…")
+            self.set_timer(3, lambda: self._complete_mock_init(repo.path))
 
         self.push_screen(AddRepoModal(), on_result)
+
+    def _complete_mock_init(self, repo_path: str) -> None:
+        # TODO: replace with real initialiser
+        mock_session = SessionEntry(
+            id="agent-1",
+            repo_path=repo_path,
+            task_id="TASK-001",
+            status="RUNNING",
+            started_at=datetime.now(),
+            ctx_pct=34.0,
+        )
+        self._state.complete_mock_init(repo_path, list(MOCK_TASKS), mock_session)
+        self._refresh_table()
+        self.notify("Repo ready — mock tasks loaded.")
 
     def action_view_tasks(self) -> None:
         repo = self._get_selected_repo()
