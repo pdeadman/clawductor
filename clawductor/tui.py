@@ -136,7 +136,7 @@ class HelpModal(ModalScreen):
         with Vertical():
             yield Label("Keybindings", id="help-title")
             yield Static(HELP_TEXT)
-            yield Button("Close (⎋)", id="help-close", variant="default")
+            yield Button("Close (Esc)", id="help-close", variant="default")
 
     def on_mount(self) -> None:
         self.query_one("#help-close").focus()
@@ -328,19 +328,22 @@ class TaskListModal(ModalScreen):
         background: $surface;
         border: tall $primary;
         padding: 1 2;
-        width: 70%;
-        max-width: 80;
+        width: 90%;
         height: auto;
-        max-height: 70%;
+        max-height: 80%;
     }
     TaskListModal #task-title {
         text-style: bold;
         color: $success;
         margin-bottom: 1;
     }
-    TaskListModal #task-close {
+    TaskListModal #task-table {
+        height: 10;
+    }
+    TaskListModal #button-row {
+        height: 3;
         margin-top: 1;
-        width: 100%;
+        align: right middle;
     }
     """
 
@@ -351,17 +354,29 @@ class TaskListModal(ModalScreen):
     def compose(self) -> ComposeResult:
         with Vertical():
             yield Label(f"Tasks — {self._repo.name}", id="task-title")
-            if self._repo.tasks:
-                for task in self._repo.tasks:
-                    yield Label(f"• {task}")
-            else:
-                yield Label(
-                    "No tasks yet. Tasks will be generated during initialisation."
-                )
-            yield Button("Close (⎋)", id="task-close", variant="default")
+            yield DataTable(id="task-table")
+            with Horizontal(id="button-row"):
+                yield Button("Close (Esc)", id="task-close")
 
     def on_mount(self) -> None:
-        self.query_one("#task-close").focus()
+        table = self.query_one("#task-table", DataTable)
+        table.add_columns("ID", "Description", "Status", "Priority")
+        if self._repo.tasks:
+            for task in self._repo.tasks:
+                if isinstance(task, dict):
+                    status = task.get("status", "pending")
+                    status_text = Text(status, style=TASK_STATUS_STYLES.get(status, "white"))
+                    table.add_row(
+                        task.get("id", ""),
+                        task.get("description", ""),
+                        status_text,
+                        task.get("priority", ""),
+                    )
+                else:
+                    table.add_row("", str(task), Text("pending", style="white"), "")
+        else:
+            table.add_row("", "No tasks yet. Tasks will be generated during initialisation.", Text("", style="white"), "")
+        self.query_one("#task-table").focus()
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         self.dismiss()

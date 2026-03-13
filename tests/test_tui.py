@@ -18,8 +18,8 @@ from datetime import datetime
 import pytest
 
 from clawductor.state import ClawductorState, RepoEntry
-from clawductor.tui import AddRepoModal, ClawductorApp
-from textual.widgets import Input
+from clawductor.tui import AddRepoModal, ClawductorApp, TaskListModal, MOCK_TASKS
+from textual.widgets import DataTable, Input
 
 
 # ---------------------------------------------------------------------------
@@ -107,6 +107,80 @@ async def test_add_repo_modal_valid_path_adds_repo(tmp_path):
     assert len(state.repos) == 1
     assert state.repos[0].path == str(repo_path)
     assert state.repos[0].status == "INITIALISING"
+
+
+# ---------------------------------------------------------------------------
+# Task list modal
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.anyio
+async def test_task_list_modal_opens_with_datatable(tmp_path):
+    """Pressing t on a repo with tasks opens TaskListModal containing a DataTable."""
+    repo_path = _git_repo(tmp_path)
+    repo = RepoEntry(
+        path=str(repo_path),
+        name=repo_path.name,
+        status="READY",
+        added_at=datetime(2026, 3, 13),
+        tasks=list(MOCK_TASKS),
+    )
+    state = _make_state(tmp_path, repos=[repo])
+    app = ClawductorApp(state=state)
+
+    async with app.run_test() as pilot:
+        await pilot.press("t")
+        await pilot.pause()
+        assert isinstance(app.screen, TaskListModal)
+        table = app.screen.query_one(DataTable)
+        assert table.row_count == len(MOCK_TASKS)
+
+
+@pytest.mark.anyio
+async def test_task_list_modal_empty_repo_shows_placeholder(tmp_path):
+    """TaskListModal with no tasks shows a placeholder row."""
+    repo_path = _git_repo(tmp_path)
+    repo = RepoEntry(
+        path=str(repo_path),
+        name=repo_path.name,
+        status="INITIALISING",
+        added_at=datetime(2026, 3, 13),
+    )
+    state = _make_state(tmp_path, repos=[repo])
+    app = ClawductorApp(state=state)
+
+    async with app.run_test() as pilot:
+        await pilot.press("t")
+        await pilot.pause()
+        assert isinstance(app.screen, TaskListModal)
+        table = app.screen.query_one(DataTable)
+        assert table.row_count == 1  # placeholder row
+
+
+# ---------------------------------------------------------------------------
+# Dashboard task count
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.anyio
+async def test_dashboard_task_count_shows_progress_format(tmp_path):
+    """Tasks column shows in_progress/total (e.g. '1/4') not 'X pending'."""
+    repo_path = _git_repo(tmp_path)
+    repo = RepoEntry(
+        path=str(repo_path),
+        name=repo_path.name,
+        status="READY",
+        added_at=datetime(2026, 3, 13),
+        tasks=list(MOCK_TASKS),
+    )
+    state = _make_state(tmp_path, repos=[repo])
+    app = ClawductorApp(state=state)
+
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        table = app.query_one(DataTable)
+        row = table.get_row_at(0)
+        assert str(row[2]) == "1/4"
 
 
 # ---------------------------------------------------------------------------
